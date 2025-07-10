@@ -1,0 +1,17 @@
+FROM ghcr.io/astral-sh/uv:python3.11-alpine
+
+ENV ENV_MODE development
+WORKDIR /app
+
+# Instalar dependências necessárias, incluindo Rust
+RUN apk add --no-cache curl git build-base libffi-dev openssl-dev rust cargo
+
+# Configuração para desenvolvimento
+ENV PYTHONPATH=/app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+
+# Comando para desenvolvimento
+CMD ["uv", "run", "api.py"] 

@@ -6,6 +6,7 @@ import httpx
 from utils.logger import logger
 import time
 import random
+from datetime import datetime, timedelta
 
 try:
     from mcp import ClientSession
@@ -27,6 +28,7 @@ class PipedreamClient:
         self.config = config or self._load_config_from_env()
         self.base_url = "https://api.pipedream.com/v1"
         self.access_token: Optional[str] = None
+        self.access_token_expires_at: Optional[datetime] = None
         self.rate_limit_token: Optional[str] = None
         self.session: Optional[httpx.AsyncClient] = None
         
@@ -64,6 +66,21 @@ class PipedreamClient:
                 headers={"User-Agent": "Suna-Pipedream-Client/1.0"}
             )
         return self.session
+
+    def _is_access_token_expired(self) -> bool:
+        """Check if access token is expired or will expire in next 5 minutes"""
+        if not self.access_token or not self.access_token_expires_at:
+            return True
+        
+        # Consider token expired if it expires in the next 5 minutes
+        buffer_time = timedelta(minutes=5)
+        return datetime.utcnow() + buffer_time >= self.access_token_expires_at
+
+    def clear_access_token(self) -> None:
+        """Clear the stored access token to force obtaining a new one"""
+        self.access_token = None
+        self.access_token_expires_at = None
+        logger.info("Access token cleared")
 
     async def _obtain_rate_limit_token(self, window_size_seconds: int = 10, requests_per_window: int = 1000) -> str:
         """Obtain a rate limit token from Pipedream to bypass rate limits"""
@@ -130,6 +147,21 @@ class PipedreamClient:
                 
                 response = await session.request(method, url, headers=request_headers, **kwargs)
                 
+                # Handle 401 Unauthorized - token might be expired
+                if response.status_code == 401:
+                    logger.warning(f"Received 401 Unauthorized for {method} {url}")
+                    if attempt < max_retries:
+                        logger.info("Clearing access token and retrying with fresh token")
+                        self.clear_access_token()
+                        # Update Authorization header with fresh token
+                        fresh_token = await self._obtain_access_token()
+                        request_headers["Authorization"] = f"Bearer {fresh_token}"
+                        
+                        # Retry the request immediately with fresh token
+                        response = await session.request(method, url, headers=request_headers, **kwargs)
+                        if response.status_code != 401:
+                            logger.info(f"Successfully retried {method} {url} with fresh token")
+                        
                 if response.status_code == 429:
                     if attempt < max_retries:
                         retry_after = response.headers.get('retry-after')
@@ -149,7 +181,12 @@ class PipedreamClient:
                 return response
                 
             except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429 and attempt < max_retries:
+                if e.response.status_code == 401:
+                    logger.error(f"Authentication failed for {method} {url}: {e.response.status_code} - {e.response.text}")
+                    # Don't retry 401 errors after token refresh attempt
+                    if attempt > 0:
+                        raise
+                elif e.response.status_code == 429 and attempt < max_retries:
                     continue
                 logger.error(f"HTTP error for {method} {url}: {e.response.status_code} - {e.response.text}")
                 raise
@@ -165,11 +202,17 @@ class PipedreamClient:
         raise Exception(f"Max retries ({max_retries}) exceeded for {method} {url}")
 
     async def _obtain_access_token(self) -> str:
-        if self.access_token:
+        # Check if we have a valid token that's not expired
+        if self.access_token and not self._is_access_token_expired():
+            logger.debug("Using existing valid access token")
             return self.access_token
             
-        logger.info("Obtaining Pipedream access token via OAuth")
+        logger.info("Obtaining fresh Pipedream access token via OAuth")
         try:
+            # Clear any existing token
+            self.access_token = None
+            self.access_token_expires_at = None
+            
             # Make this request without retry logic to avoid issues
             session = await self._get_session()
             response = await session.post(
@@ -189,7 +232,11 @@ class PipedreamClient:
             if not self.access_token:
                 raise ValueError("No access token received from Pipedream OAuth")
             
-            logger.info("Successfully obtained Pipedream access token")
+            # Set expiration time (default to 1 hour if not provided)
+            expires_in = data.get("expires_in", 3600)  # Default 1 hour
+            self.access_token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            
+            logger.info(f"Successfully obtained Pipedream access token (expires at: {self.access_token_expires_at})")
             return self.access_token
             
         except Exception as e:
@@ -217,16 +264,22 @@ class PipedreamClient:
             logger.debug(f"Using existing rate limit token: {self.rate_limit_token[:20]}...")
     
     async def create_connection_token(self, external_user_id: str, app: Optional[str] = None) -> Dict[str, Any]:
-        access_token = await self._obtain_access_token()
-        await self._ensure_rate_limit_token()
+        logger.info(f"Starting connection token creation for user: {external_user_id}, app: {app}")
         
-        logger.info(f"Creating connection token for user: {external_user_id}, app: {app}")
         try:
+            access_token = await self._obtain_access_token()
+            await self._ensure_rate_limit_token()
+            
+            logger.info(f"Creating connection token for user: {external_user_id}, app: {app}")
+            logger.debug(f"Using project_id: {self.config.project_id}, environment: {self.config.environment}")
+            
             payload = {
                 "external_user_id": external_user_id
             }
             if app:
                 payload["app"] = app
+            
+            logger.debug(f"Request payload: {payload}")
             
             response = await self._make_request_with_retry(
                 "POST",
@@ -239,6 +292,9 @@ class PipedreamClient:
                 json=payload
             )
             data = response.json()
+            
+            logger.debug(f"Raw response data: {data}")
+            
             if app and "connect_link_url" in data:
                 link = data["connect_link_url"]
                 if "app=" not in link:
@@ -246,21 +302,25 @@ class PipedreamClient:
                     data["connect_link_url"] = f"{link}{separator}app={app}"
             
             logger.info(f"Successfully created connection token for user: {external_user_id}")
-            logger.info(f"Connection token: {data}")
+            logger.debug(f"Connection token response: {data}")
             return data
             
         except Exception as e:
-            logger.error(f"Error creating connection token: {str(e)}")
+            logger.error(f"Error creating connection token for user {external_user_id}, app {app}: {str(e)}")
+            logger.debug(f"Full error details: {type(e).__name__}: {str(e)}")
             raise
-    
+
     async def get_connections(self, external_user_id: str) -> List[Dict[str, Any]]:
-        access_token = await self._obtain_access_token()
-        await self._ensure_rate_limit_token()
-        
-        logger.info(f"Getting connections for user: {external_user_id}")
+        logger.info(f"Starting get connections for user: {external_user_id}")
         
         try:
+            access_token = await self._obtain_access_token()
+            await self._ensure_rate_limit_token()
+            
+            logger.info(f"Getting connections for user: {external_user_id}")
+            
             url = f"{self.base_url}/connect/{self.config.project_id}/accounts?external_id={external_user_id}"
+            logger.debug(f"Request URL: {url}")
             
             headers = {
                 "X-PD-Environment": self.config.environment,
@@ -274,11 +334,13 @@ class PipedreamClient:
             )
             
             data = response.json()
+            logger.debug(f"Raw connections response: {data}")
             
             accounts = data.get("data", [])
             apps = [account.get("app") for account in accounts if account.get("app")]
             
             logger.info(f"Successfully retrieved {len(apps)} apps for user: {external_user_id}")
+            logger.debug(f"Retrieved apps: {[app.get('name') for app in apps if app.get('name')]}")
             return apps
             
         except httpx.HTTPStatusError as e:
@@ -286,10 +348,13 @@ class PipedreamClient:
                 logger.info(f"User {external_user_id} not found in Pipedream, returning empty connections list")
                 return []
             
-            logger.error(f"HTTP error getting connections: {e.response.status_code} - {e.response.text}")
+            logger.error(f"HTTP error getting connections for user {external_user_id}: {e.response.status_code} - {e.response.text}")
+            logger.debug(f"Request URL: {url}")
+            logger.debug(f"Request headers: {headers}")
             raise
         except Exception as e:
-            logger.error(f"Error getting connections: {str(e)}")
+            logger.error(f"Error getting connections for user {external_user_id}: {str(e)}")
+            logger.debug(f"Full error details: {type(e).__name__}: {str(e)}")
             raise
 
     async def discover_mcp_servers(self, external_user_id: str, app_slug: Optional[str] = None, oauth_app_id: Optional[str] = None) -> List[Dict[str, Any]]:

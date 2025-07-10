@@ -45,6 +45,8 @@ class HealthCheckResponse(BaseModel):
     project_id: str
     environment: str
     has_access_token: bool
+    has_rate_limit_token: bool = False
+    api_accessible: bool = False
     error: Optional[str] = None
 
 class TriggerWorkflowRequest(BaseModel):
@@ -531,13 +533,40 @@ async def connect_credential_profile(
         return result
         
     except ValueError as e:
+        logger.warning(f"Profile not found: {profile_id} for user: {user_id}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to connect credential profile: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to connect credential profile: {str(e)}"
-        )
+        error_message = str(e)
+        logger.error(f"Failed to connect credential profile: {error_message}")
+        
+        # Handle specific authentication errors
+        if "401 Unauthorized" in error_message or "Unauthorized" in error_message:
+            logger.error(f"Pipedream authentication failed for profile: {profile_id}")
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication failed with Pipedream. Please check your Pipedream credentials and try again."
+            )
+        elif "403 Forbidden" in error_message:
+            raise HTTPException(
+                status_code=403,
+                detail="Access forbidden. Your Pipedream credentials may not have the required permissions."
+            )
+        elif "429" in error_message or "rate limit" in error_message.lower():
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded. Please wait a moment and try again."
+            )
+        elif "timeout" in error_message.lower():
+            raise HTTPException(
+                status_code=408,
+                detail="Request timed out. Please try again."
+            )
+        else:
+            # Generic server error for other cases
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to connect credential profile: {error_message}"
+            )
 
 @router.get("/profiles/{profile_id}/connections")
 async def get_profile_connections(
@@ -565,4 +594,80 @@ async def get_profile_connections(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get profile connections: {str(e)}"
+        )
+
+@router.get("/health", response_model=HealthCheckResponse)
+async def pipedream_health_check():
+    """Check Pipedream API connectivity and authentication status"""
+    logger.info("Performing Pipedream health check")
+    
+    try:
+        client = get_pipedream_client()
+        
+        # Test basic connectivity and authentication
+        access_token = await client._obtain_access_token()
+        
+        # Test rate limit token
+        try:
+            await client._ensure_rate_limit_token()
+            has_rate_limit = True
+        except Exception as e:
+            logger.warning(f"Rate limit token issue: {str(e)}")
+            has_rate_limit = False
+        
+        # Test a simple API call
+        try:
+            test_user_id = "health_check_test_user"
+            connections = await client.get_connections(test_user_id)
+            api_accessible = True
+        except Exception as e:
+            logger.warning(f"API test call failed: {str(e)}")
+            api_accessible = False
+        
+        logger.info("Pipedream health check completed successfully")
+        return HealthCheckResponse(
+            status="healthy",
+            project_id=client.config.project_id,
+            environment=client.config.environment,
+            has_access_token=bool(access_token),
+            has_rate_limit_token=has_rate_limit,
+            api_accessible=api_accessible
+        )
+        
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Pipedream health check failed: {error_message}")
+        
+        return HealthCheckResponse(
+            status="unhealthy",
+            project_id=client.config.project_id if 'client' in locals() else "unknown",
+            environment=client.config.environment if 'client' in locals() else "unknown",
+            has_access_token=False,
+            error=error_message
+        )
+
+@router.post("/debug/clear-tokens")
+async def clear_pipedream_tokens(
+    user_id: str = Depends(get_current_user_id_from_jwt)
+):
+    """Clear all cached tokens to force refresh - for debugging"""
+    logger.info(f"Clearing Pipedream tokens for debugging (requested by user: {user_id})")
+    
+    try:
+        client = get_pipedream_client()
+        client.clear_access_token()
+        client.clear_rate_limit_token()
+        
+        logger.info("Successfully cleared all Pipedream tokens")
+        return {
+            "success": True,
+            "message": "All tokens cleared successfully",
+            "timestamp": int(time.time())
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to clear tokens: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to clear tokens: {str(e)}"
         )

@@ -394,6 +394,8 @@ class ProfileManager:
             if not profile:
                 raise ValueError("Profile not found")
             
+            logger.info(f"Attempting to create connection token for profile: {profile_id}, external_user_id: {profile.external_user_id}, app: {app or profile.app_slug}")
+            
             # Create connection token with profile's external_user_id
             result = await self.pipedream_client.create_connection_token(
                 profile.external_user_id,
@@ -414,9 +416,22 @@ class ProfileManager:
                 'app': app or profile.app_slug
             }
             
-        except Exception as e:
-            logger.error(f"Error connecting profile: {str(e)}")
+        except ValueError:
+            # Re-raise ValueError as-is (profile not found)
             raise
+        except Exception as e:
+            error_message = str(e)
+            
+            # Add context to authentication errors
+            if "401 Unauthorized" in error_message or "Unauthorized" in error_message:
+                logger.error(f"Pipedream authentication failed for profile {profile_id}: {error_message}")
+                raise Exception(f"Authentication failed with Pipedream API. The stored credentials may be invalid or expired. Original error: {error_message}")
+            elif "403 Forbidden" in error_message:
+                logger.error(f"Pipedream access forbidden for profile {profile_id}: {error_message}")
+                raise Exception(f"Access forbidden by Pipedream API. Check if your credentials have the required permissions. Original error: {error_message}")
+            else:
+                logger.error(f"Error connecting profile {profile_id}: {error_message}")
+                raise
     
     async def get_profile_connections(self, account_id: str, profile_id: str) -> List[Dict[str, Any]]:
         """Get connections for a specific profile"""
