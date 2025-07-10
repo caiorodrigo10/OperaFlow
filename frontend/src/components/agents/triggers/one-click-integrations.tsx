@@ -31,6 +31,21 @@ const OAUTH_PROVIDERS = {
     icon: <SlackIcon className="h-4 w-4" />,
     isOAuth: true
   },
+  telegram: {
+    name: 'Telegram',
+    icon: getTriggerIcon('telegram'),
+    isOAuth: false
+  },
+  discord: {
+    name: 'Discord',
+    icon: getTriggerIcon('discord'),
+    isOAuth: false
+  },
+  github_webhook: {
+    name: 'GitHub',
+    icon: getTriggerIcon('github_webhook'),
+    isOAuth: false
+  },
   schedule: {
     name: 'Schedule',
     icon: <Clock className="h-4 w-4" color="#10b981" />,
@@ -63,13 +78,23 @@ export const OneClickIntegrations: React.FC<OneClickIntegrationsProps> = ({
       return;
     }
     
-    try {
-      await installMutation.mutateAsync({
-        agent_id: agentId,
-        provider: provider
-      });
-    } catch (error) {
-      console.error(`Error installing ${provider}:`, error);
+    // For non-OAuth providers (telegram, discord, github_webhook), open configuration dialog
+    if (!OAUTH_PROVIDERS[provider].isOAuth) {
+      // TODO: Open configuration dialog for manual setup
+      toast.info(`${OAUTH_PROVIDERS[provider].name} configuration coming soon!`);
+      return;
+    }
+    
+    // Only call OAuth installation for OAuth providers
+    if (provider === 'slack') {
+      try {
+        await installMutation.mutateAsync({
+          agent_id: agentId,
+          provider: provider
+        });
+      } catch (error) {
+        console.error(`Error installing ${provider}:`, error);
+      }
     }
   };
 

@@ -1,6 +1,6 @@
 import { FaTelegram } from "react-icons/fa";
 import { SlackIcon } from "@/components/ui/icons/slack";
-import { Webhook, Clock } from "lucide-react";
+import { Webhook, Clock, Github, MessageSquare } from "lucide-react";
 import { Zap } from "lucide-react";
 
 export const getTriggerIcon = (triggerType: string) => {
@@ -10,7 +10,12 @@ export const getTriggerIcon = (triggerType: string) => {
     case 'slack':
       return <SlackIcon className="h-5 w-5" />;
     case 'webhook':
+    case 'github_webhook':
       return <Webhook className="h-5 w-5" />;
+    case 'github':
+      return <Github className="h-5 w-5" />;
+    case 'discord':
+      return <MessageSquare className="h-5 w-5" color="#5865F2" />;
     case 'schedule':
       return <Clock className="h-5 w-5" color="#10b981" />;
     default:
@@ -25,7 +30,12 @@ export const getDialogIcon = (triggerType: string) => {
     case 'slack':
       return <SlackIcon className="h-6 w-6" />;
     case 'webhook':
+    case 'github_webhook':
       return <Webhook className="h-6 w-6" />;
+    case 'github':
+      return <Github className="h-6 w-6" />;
+    case 'discord':
+      return <MessageSquare className="h-6 w-6" color="#5865F2" />;
     case 'schedule':
       return <Clock className="h-6 w-6" color="#10b981" />;
     default:
