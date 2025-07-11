@@ -141,8 +141,8 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
         if (!selectedAgentId && !hasAgentIdInUrl) {
           const savedAgentId = localStorage.getItem('lastSelectedAgentId');
           if (savedAgentId) {
-            // Convert 'suna' back to undefined for the default agent
-            const agentIdToSelect = savedAgentId === 'suna' ? undefined : savedAgentId;
+            // Convert 'operabase' back to undefined for the default agent
+            const agentIdToSelect = savedAgentId === 'operabase' ? undefined : savedAgentId;
             console.log('Loading saved agent from localStorage:', savedAgentId);
             onAgentSelect(agentIdToSelect);
           } else {
@@ -162,8 +162,8 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
     // Save selected agent to localStorage whenever it changes
     useEffect(() => {
       if (typeof window !== 'undefined') {
-        // Use 'suna' as a special key for the default agent (undefined)
-        const keyToStore = selectedAgentId === undefined ? 'suna' : selectedAgentId;
+        // Use 'operabase' as a special key for the default agent (undefined)
+        const keyToStore = selectedAgentId === undefined ? 'operabase' : selectedAgentId;
         console.log('Saving selected agent to localStorage:', keyToStore);
         localStorage.setItem('lastSelectedAgentId', keyToStore);
       }
