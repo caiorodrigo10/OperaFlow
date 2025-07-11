@@ -1,9 +1,9 @@
-# Simple Railway Dockerfile for OperaFlow
+# Optimized Railway Dockerfile for OperaFlow
 FROM node:20-slim
 
 WORKDIR /app
 
-# Install system dependencies for both Python and Node.js
+# Install system dependencies including nginx
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -21,47 +21,59 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgif-dev \
     librsvg2-dev \
     supervisor \
+    nginx \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv using the recommended method with --break-system-packages
+# Install uv for Python dependency management
 RUN pip3 install --break-system-packages uv
 
-# Copy and install frontend dependencies first
-COPY frontend/package*.json ./frontend/
-WORKDIR /app/frontend
-RUN npm ci
-
-# Copy ALL frontend source files before building
-COPY frontend/ ./
-ENV NODE_ENV=production
-ENV NEXT_PUBLIC_VERCEL_ENV=production
-
-# Build the frontend
-RUN npm run build
-
-# Setup backend
-WORKDIR /app
+# Setup backend first (faster builds on dependency changes)
 COPY backend/ ./backend/
 WORKDIR /app/backend
 
-# Install Python dependencies using uv
-RUN uv sync
+# Install Python dependencies
+RUN uv sync --frozen
 
-# Create supervisor configuration
+# Setup frontend
+WORKDIR /app
+COPY frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm ci --only=production
+
+# Copy frontend source and build
+COPY frontend/ ./
+ENV NODE_ENV=production
+ENV NEXT_PUBLIC_VERCEL_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Set Railway-specific environment variables for build
+ENV NEXT_PUBLIC_BACKEND_URL=${RAILWAY_PUBLIC_DOMAIN:+https://$RAILWAY_PUBLIC_DOMAIN/api}
+ENV NEXT_PUBLIC_URL=${RAILWAY_PUBLIC_DOMAIN:+https://$RAILWAY_PUBLIC_DOMAIN}
+
+# Build frontend
+RUN npm run build
+
+# Copy nginx configuration
+WORKDIR /app
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Create optimized supervisor configuration with nginx
 RUN echo '[supervisord]\n\
 nodaemon=true\n\
 user=root\n\
 logfile=/var/log/supervisor/supervisord.log\n\
 pidfile=/var/run/supervisord.pid\n\
+loglevel=info\n\
 \n\
 [program:backend]\n\
-command=uv run api.py\n\
+command=uv run uvicorn api:app --host 0.0.0.0 --port 8000\n\
 directory=/app/backend\n\
 autostart=true\n\
 autorestart=true\n\
 stderr_logfile=/var/log/supervisor/backend.err.log\n\
 stdout_logfile=/var/log/supervisor/backend.out.log\n\
 environment=PYTHONPATH="/app/backend",PYTHONUNBUFFERED="1"\n\
+priority=1\n\
 \n\
 [program:frontend]\n\
 command=npm run start\n\
@@ -71,6 +83,15 @@ autorestart=true\n\
 stderr_logfile=/var/log/supervisor/frontend.err.log\n\
 stdout_logfile=/var/log/supervisor/frontend.out.log\n\
 environment=NODE_ENV="production",PORT="3000"\n\
+priority=2\n\
+\n\
+[program:nginx]\n\
+command=/usr/sbin/nginx -g "daemon off;"\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/var/log/supervisor/nginx.err.log\n\
+stdout_logfile=/var/log/supervisor/nginx.out.log\n\
+priority=3\n\
 ' > /etc/supervisor/conf.d/supervisord.conf
 
 # Create log directories
@@ -80,14 +101,14 @@ RUN mkdir -p /var/log/supervisor
 ENV NODE_ENV=production
 ENV PYTHONPATH=/app/backend
 ENV PYTHONUNBUFFERED=1
-ENV PORT=3000
+ENV PORT=${PORT:-8000}
 
-# Expose ports
-EXPOSE 3000 8000
+# Expose the main port (Railway will route to this)
+EXPOSE ${PORT:-8000}
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health && curl -f http://localhost:3000 || exit 1
+# Improved health check targeting backend API through nginx
+HEALTHCHECK --interval=30s --timeout=15s --start-period=180s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8000}/api/health || exit 1
 
 # Start supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
