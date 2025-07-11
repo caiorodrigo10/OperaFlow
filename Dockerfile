@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
+    python3-full \
     curl \
     git \
     build-essential \
@@ -22,8 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for Python package management
-RUN pip3 install uv
+# Install uv using the recommended method with --break-system-packages
+RUN pip3 install --break-system-packages uv
 
 # Copy and install frontend dependencies
 COPY frontend/package*.json ./frontend/
@@ -41,7 +42,7 @@ WORKDIR /app
 COPY backend/ ./backend/
 WORKDIR /app/backend
 
-# Install Python dependencies
+# Install Python dependencies using uv
 RUN uv sync
 
 # Create supervisor configuration
