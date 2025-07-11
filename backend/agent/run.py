@@ -34,6 +34,78 @@ from agentpress.tool import SchemaType
 
 load_dotenv()
 
+def extract_essential_sections(default_prompt: str) -> str:
+    """Extract essential sections from the default prompt to preserve critical functionality."""
+    essential_sections = []
+    
+    # Workflow management (TODO functionality)
+    workflow_section = """
+<workflow_management>
+  <mandatory_todo>
+    <rule>ALWAYS create TODO.md as first step for any task</rule>
+    <rule>Break complex tasks into actionable items with [ ] checkboxes</rule>
+    <rule>Update progress by marking [x] completed items</rule>
+    <rule>Work through TODO items systematically</rule>
+    <rule>Use 'complete' tool only when ALL tasks are marked [x]</rule>
+  </mandatory_todo>
+  
+  <reasoning_protocol>
+    <step_0>CREATE TODO: Always start by creating/updating TODO.md</step_0>
+    <step_1>UNDERSTAND: Analyze the user's request</step_1>
+    <step_2>PLAN: Break down into actionable steps in TODO.md</step_2>
+    <step_3>EXECUTE: Work through TODO items systematically</step_3>
+    <step_4>VERIFY: Confirm completion before finishing</step_4>
+  </reasoning_protocol>
+</workflow_management>
+"""
+    essential_sections.append(workflow_section)
+    
+    # Critical tool usage rules
+    tool_rules_section = """
+<tool_usage_critical>
+  <ask_tool>
+    <rule>NEVER use ask tool with empty content</rule>
+    <rule>Always provide meaningful text when using ask</rule>
+    <example>✅ CORRECT: <ask>I've completed the analysis. Would you like me to create a detailed report?</ask></example>
+    <example>❌ WRONG: <ask></ask></example>
+  </ask_tool>
+  
+  <str_replace_tool>
+    <rule>Include 3-5 lines of context before and after changes</rule>
+    <rule>Ensure unique identification of replacement target</rule>
+    <rule>For files >1000 lines, use incremental approach</rule>
+  </str_replace_tool>
+  
+  <large_file_strategy>
+    <rule>For files >1000 lines or 20+ items: create outline first</rule>
+    <rule>Build content incrementally using str_replace</rule>
+    <rule>Never attempt to create entire large documents in one call</rule>
+  </large_file_strategy>
+</tool_usage_critical>
+"""
+    essential_sections.append(tool_rules_section)
+    
+    # Response format requirements
+    response_format_section = """
+<response_templates>
+  <task_initiation>
+    <format>
+## 🎯 Understanding the Task
+[Brief summary of what user wants]
+
+## 📋 My Plan (TODO.md)
+[Create TODO.md with specific actionable items]
+
+## 🚀 Starting Execution
+[Begin with first tool]
+    </format>
+  </task_initiation>
+</response_templates>
+"""
+    essential_sections.append(response_format_section)
+    
+    return "\n".join(essential_sections)
+
 async def run_agent(
     thread_id: str,
     project_id: str,
@@ -225,10 +297,21 @@ async def run_agent(
     if agent_config and agent_config.get('system_prompt'):
         custom_system_prompt = agent_config['system_prompt'].strip()
         
-        # Completely replace the default system prompt with the custom one
-        # This prevents confusion and tool hallucination
-        system_content = custom_system_prompt
-        logger.info(f"Using ONLY custom agent system prompt for: {agent_config.get('name', 'Unknown')}")
+        # Extract essential sections to preserve critical functionality
+        essential_sections = extract_essential_sections(default_system_content)
+        
+        # Combine essential sections with custom prompt
+        system_content = f"""{essential_sections}
+
+--- CUSTOM AGENT INSTRUCTIONS ---
+{custom_system_prompt}
+
+--- CRITICAL REMINDERS ---
+🚨 ALWAYS follow workflow management rules above
+🚨 NEVER skip TODO creation step
+🚨 NEVER use ask tool with empty content
+"""
+        logger.info(f"Using hybrid prompt (essential + custom) for agent: {agent_config.get('name', 'Unknown')}")
     elif is_agent_builder:
         system_content = get_agent_builder_prompt()
         logger.info("Using agent builder system prompt")
