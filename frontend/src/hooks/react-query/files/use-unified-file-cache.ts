@@ -187,26 +187,45 @@ export function useUnifiedFileContent(
   });
   
   // Client-side transformations (no additional requests)
-  const transformedData = useMemo(async () => {
-    if (!blobQuery.data) return null;
+  const [transformedData, setTransformedData] = React.useState<string | Blob | any | null>(null);
+  
+  React.useEffect(() => {
+    if (!blobQuery.data) {
+      setTransformedData(null);
+      return;
+    }
     
     const blob = blobQuery.data;
     
-    switch (requestedContentType) {
-      case 'text':
-        return await blob.text();
-      case 'json':
-        const text = await blob.text();
-        try {
-          return JSON.parse(text);
-        } catch (e) {
-          console.error('Failed to parse JSON:', e);
-          return null;
+    const transformData = async () => {
+      try {
+        switch (requestedContentType) {
+          case 'text':
+            const textContent = await blob.text();
+            setTransformedData(textContent);
+            break;
+          case 'json':
+            const text = await blob.text();
+            try {
+              const jsonData = JSON.parse(text);
+              setTransformedData(jsonData);
+            } catch (e) {
+              console.error('Failed to parse JSON:', e);
+              setTransformedData(null);
+            }
+            break;
+          case 'blob':
+          default:
+            setTransformedData(blob);
+            break;
         }
-      case 'blob':
-      default:
-        return blob;
-    }
+      } catch (error) {
+        console.error('Error transforming blob data:', error);
+        setTransformedData(null);
+      }
+    };
+    
+    transformData();
   }, [blobQuery.data, requestedContentType]);
   
   // Blob URL management with automatic cleanup

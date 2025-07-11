@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -9,6 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Download,
   Upload,
@@ -19,6 +26,8 @@ import {
   ArrowLeft,
   Home,
   ChevronRight,
+  ChevronLeft,
+  ChevronDown,
   Loader,
   FileDown,
   AlertTriangle,
@@ -34,6 +43,7 @@ import {
   Save,
   X,
   ExternalLink,
+  Archive,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { toast } from 'sonner';
@@ -43,6 +53,11 @@ import { useUnifiedFileContent, useUnifiedFilePreloader } from '@/hooks/react-qu
 import { FileRenderer } from '@/components/file-renderers';
 import JSZip from 'jszip';
 import { cn } from '@/lib/utils';
+import { normalizeFilenameToNFC } from '@/lib/utils/unicode';
+import { createClient } from '@/lib/supabase/client';
+
+// Define API_URL
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
 
 // Legacy compatibility functions
 const legacyFileCache = {
@@ -70,6 +85,50 @@ const legacyFileCache = {
     
     // Default to text
     return 'text';
+  },
+  
+  getMimeTypeFromPath: (path: string): string => {
+    const ext = path.toLowerCase().split('.').pop() || '';
+    
+    const mimeTypes: Record<string, string> = {
+      // Images
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif: 'image/gif',
+      svg: 'image/svg+xml',
+      webp: 'image/webp',
+      bmp: 'image/bmp',
+      ico: 'image/x-icon',
+      
+      // Documents
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ppt: 'application/vnd.ms-powerpoint',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      
+      // Archives
+      zip: 'application/zip',
+      
+      // Text
+      txt: 'text/plain',
+      json: 'application/json',
+      js: 'text/javascript',
+      ts: 'text/typescript',
+      css: 'text/css',
+      html: 'text/html',
+      xml: 'application/xml',
+    };
+    
+    return mimeTypes[ext] || 'application/octet-stream';
+  },
+  
+  has: (key: string): boolean => {
+    // Legacy compatibility - always return false to force new system
+    return false;
   },
 };
 
@@ -680,7 +739,7 @@ export function FileViewerModal({
       const isBinaryFile = isImageFile || isPdfFile || isOfficeFile;
 
       // Store raw content
-      setRawContent(cachedFileContent);
+      setRawContent(cachedFileContent as string | Blob);
 
       // Handle content based on type and file extension
       if (typeof cachedFileContent === 'string') {
@@ -707,7 +766,7 @@ export function FileViewerModal({
         console.log(`[FILE VIEWER] Created blob URL: ${url} for ${selectedFilePath}`);
         setBlobUrlForRenderer(url);
         setTextContentForRenderer(null);
-      } else if (typeof cachedFileContent === 'object') {
+      } else if (typeof cachedFileContent === 'object' && cachedFileContent !== null) {
         // convert to json string if file_contents is a object
         const jsonString = JSON.stringify(cachedFileContent, null, 2);
         console.log(`[FILE VIEWER] Setting text content for object file: ${selectedFilePath}`);
