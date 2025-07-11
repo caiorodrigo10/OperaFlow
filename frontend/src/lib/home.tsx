@@ -57,17 +57,17 @@ export interface PricingTier {
 }
 
 export const siteConfig = {
-  name: 'Kortix Suna',
-  description: 'The Generalist AI Agent that can act on your behalf.',
+  name: 'Operabase',
+  description: 'Your new operational AI.',
   cta: 'Start Free',
   url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-  keywords: ['AI Agent', 'Generalist AI', 'Open Source AI', 'Autonomous Agent'],
+  keywords: ['AI Agent', 'Operational AI', 'AI Assistant', 'Autonomous Agent'],
   links: {
-    email: 'support@kortix.ai',
-    twitter: 'https://x.com/kortixai',
-    discord: 'https://discord.gg/kortixai',
-    github: 'https://github.com/Kortix-ai/Suna',
-    instagram: 'https://instagram.com/kortixai',
+    email: 'support@operabase.com',
+    twitter: 'https://x.com/operabase',
+    discord: 'https://discord.gg/operabase',
+    github: 'https://github.com/operabase/operabase',
+    instagram: 'https://instagram.com/operabase',
   },
   nav: {
     links: [
@@ -104,12 +104,12 @@ export const siteConfig = {
         />
       </svg>
     ),
-    badge: '100% OPEN SOURCE',
-    githubUrl: 'https://github.com/kortix-ai/suna',
-    title: 'Suna, the AI Employee.',
+    badge: 'ALPHA VERSION',
+    githubUrl: 'https://github.com/operabase/operabase',
+    title: 'Your new operational AI.',
     description:
-      'Suna by Kortix – is a generalist AI Agent that acts on your behalf.',
-    inputPlaceholder: 'Ask Suna to...',
+      'Tell it what you need. The AI understands, builds, and executes — like an assistant that works 24/7.',
+    inputPlaceholder: 'Describe what you need help with...',
   },
   cloudPricingItems: [
     {

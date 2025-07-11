@@ -1,11 +1,11 @@
 export const siteConfig = {
-  name: 'Kortix Suna',
-  url: 'https://suna.so/',
-  description: 'Kortix AI',
+  name: 'Operabase',
+  url: 'https://operabase.com/',
+  description: 'Your new operational AI',
   links: {
-    twitter: 'https://x.com/kortixai',
-    github: 'https://github.com/kortix-ai/',
-    linkedin: 'https://www.linkedin.com/company/kortix/',
+    twitter: 'https://x.com/operabase',
+    github: 'https://github.com/operabase/',
+    linkedin: 'https://www.linkedin.com/company/operabase/',
   },
 };
 

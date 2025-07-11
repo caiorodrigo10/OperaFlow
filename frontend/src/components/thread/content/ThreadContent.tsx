@@ -314,7 +314,7 @@ export const ThreadContent: React.FC<ThreadContentProps> = ({
     project,
     debugMode = false,
     isPreviewMode = false,
-    agentName = 'Suna',
+    agentName = 'Operabase',
     agentAvatar = <KortixLogo size={16} />,
     emptyStateComponent,
 }) => {
@@ -633,7 +633,7 @@ export const ThreadContent: React.FC<ThreadContentProps> = ({
                                                                 if (firstAssistantWithAgent?.agents?.name) {
                                                                     return firstAssistantWithAgent.agents.name;
                                                                 }
-                                                                return 'Suna';
+                                                                return 'Operabase';
                                                             })()}
                                                         </p>
                                                     </div>

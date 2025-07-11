@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: `%s - ${siteConfig.name}`,
   },
   description:
-    'Suna is a fully open source AI assistant that helps you accomplish real-world tasks with ease. Through natural conversation, Suna becomes your digital companion for research, data analysis, and everyday challenges.',
+    'Operabase is your new operational AI that understands, builds, and executes tasks like an assistant that works 24/7. Tell it what you need and get results.',
   keywords: [
     'AI',
     'artificial intelligence',
@@ -43,13 +43,11 @@ export const metadata: Metadata = {
     'research',
     'data analysis',
   ],
-  authors: [{ name: 'Kortix Team', url: 'https://suna.so' }],
-  creator:
-    'Kortix Team - Adam Cohen Hillel, Marko Kraemer, Domenico Gagliardi, and Quoc Dat Le',
-  publisher:
-    'Kortix Team - Adam Cohen Hillel, Marko Kraemer, Domenico Gagliardi, and Quoc Dat Le',
+  authors: [{ name: 'Operabase Team', url: 'https://operabase.com' }],
+  creator: 'Operabase Team',
+  publisher: 'Operabase Team',
   category: 'Technology',
-  applicationName: 'Suna',
+  applicationName: 'Operabase',
   formatDetection: {
     telephone: false,
     email: false,
@@ -64,17 +62,17 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'Suna - Open Source Generalist AI Agent',
+    title: 'Operabase - Your New Operational AI',
     description:
-      'Suna is a fully open source AI assistant that helps you accomplish real-world tasks with ease through natural conversation.',
+      'Operabase is your new operational AI that understands, builds, and executes tasks like an assistant that works 24/7.',
     url: siteConfig.url,
-    siteName: 'Suna',
+    siteName: 'Operabase',
     images: [
       {
         url: '/banner.png',
         width: 1200,
         height: 630,
-        alt: 'Suna - Open Source Generalist AI Agent',
+        alt: 'Operabase - Your New Operational AI',
         type: 'image/png',
       },
     ],
@@ -83,9 +81,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Suna - Open Source Generalist AI Agent',
+    title: 'Operabase - Your New Operational AI',
     description:
-      'Suna is a fully open source AI assistant that helps you accomplish real-world tasks with ease through natural conversation.',
+              'Operabase is your new operational AI that understands, builds, and executes tasks like an assistant that works 24/7.',
     creator: '@kortixai',
     site: '@kortixai',
     images: [
@@ -93,7 +91,7 @@ export const metadata: Metadata = {
         url: '/banner.png',
         width: 1200,
         height: 630,
-        alt: 'Suna - Open Source Generalist AI Agent',
+        alt: 'Operabase - Your New Operational AI',
       },
     ],
   },

@@ -28,6 +28,9 @@ from services import email_api
 from triggers import api as triggers_api
 from triggers import unified_oauth_api
 
+import os
+import json
+
 
 load_dotenv()
 
@@ -195,6 +198,8 @@ async def health_check():
     }
 
 app.include_router(api_router, prefix="/api")
+
+
 
 
 if __name__ == "__main__":
