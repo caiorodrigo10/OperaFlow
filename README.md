@@ -1,20 +1,19 @@
 <div align="center">
 
-# Suna - Open Source Generalist AI Agent
+# OperaFlow - Open Source Operational AI Platform
 
-(that acts on your behalf)
+*Your new operational AI that understands, builds, and executes*
 
-![Suna Screenshot](frontend/public/banner.png)
+![OperaFlow Banner](frontend/public/banner.png)
 
-Suna is a fully open source AI assistant that helps you accomplish real-world tasks with ease. Through natural conversation, Suna becomes your digital companion for research, data analysis, and everyday challenges—combining powerful capabilities with an intuitive interface that understands what you need and delivers results.
+OperaFlow is a fully open source AI platform that helps you accomplish real-world tasks with ease. Through natural conversation, OperaFlow becomes your digital companion for research, data analysis, automation, and everyday challenges—combining powerful capabilities with an intuitive interface that understands what you need and delivers results.
 
-Suna's powerful toolkit includes seamless browser automation to navigate the web and extract data, file management for document creation and editing, web crawling and extended search capabilities, command-line execution for system tasks, website deployment, and integration with various APIs and services. These capabilities work together harmoniously, allowing Suna to solve your complex problems and automate workflows through simple conversations!
+OperaFlow's powerful toolkit includes seamless browser automation to navigate the web and extract data, file management for document creation and editing, web crawling and extended search capabilities, command-line execution for system tasks, website deployment, and integration with various APIs and services. These capabilities work together harmoniously, allowing OperaFlow to solve your complex problems and automate workflows through simple conversations!
 
-[![License](https://img.shields.io/badge/License-Apache--2.0-blue)](./license)
-[![Discord Follow](https://dcbadge.limes.pink/api/server/Py6pCBUUPw?style=flat)](https://discord.gg/Py6pCBUUPw)
-[![Twitter Follow](https://img.shields.io/twitter/follow/kortixai)](https://x.com/kortixai)
-[![GitHub Repo stars](https://img.shields.io/github/stars/kortix-ai/suna)](https://github.com/kortix-ai/suna)
-[![Issues](https://img.shields.io/github/issues/kortix-ai/suna)](https://github.com/kortix-ai/suna/labels/bug)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/OperaFlow)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue)](./LICENSE)
+[![GitHub Repo stars](https://img.shields.io/github/stars/caiorodrigo10/OperaFlow)](https://github.com/caiorodrigo10/OperaFlow)
+[![Issues](https://img.shields.io/github/issues/caiorodrigo10/OperaFlow)](https://github.com/caiorodrigo10/OperaFlow/issues)
 
 <!-- Keep these links. Translations will automatically update with the README. -->
 [Deutsch](https://www.readme-i18n.com/kortix-ai/suna?lang=de) | 
@@ -30,21 +29,22 @@ Suna's powerful toolkit includes seamless browser automation to navigate the web
 
 ## Table of Contents
 
-- [Suna Architecture](#project-architecture)
+- [OperaFlow Architecture](#project-architecture)
   - [Backend API](#backend-api)
   - [Frontend](#frontend)
-  - [Agent Docker](#agent-docker)
+  - [Agent Execution Environment](#agent-execution-environment)
   - [Supabase Database](#supabase-database)
+- [Key Features](#key-features)
 - [Use Cases](#use-cases)
-- [Self-Hosting](#self-hosting)
-- [Acknowledgements](#acknowledgements)
+- [Deployment Options](#deployment-options)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Project Architecture
 
 ![Architecture Diagram](docs/images/diagram.png)
 
-Suna consists of four main components:
+OperaFlow consists of four main components working together to provide a complete operational AI platform:
 
 ### Backend API
 
@@ -54,13 +54,45 @@ Python/FastAPI service that handles REST endpoints, thread management, and LLM i
 
 Next.js/React application providing a responsive UI with chat interface, dashboard, etc.
 
-### Agent Docker
+### Agent Execution Environment
 
-Isolated execution environment for every agent - with browser automation, code interpreter, file system access, tool integration, and security features.
+Isolated Docker-based execution environment for every agent with browser automation, code interpreter, file system access, tool integration, and comprehensive security features. Each agent operates in its own sandbox for maximum security and reliability.
 
 ### Supabase Database
 
-Handles data persistence with authentication, user management, conversation history, file storage, agent state, analytics, and real-time subscriptions.
+Handles data persistence with authentication, user management, conversation history, file storage, agent state, analytics, and real-time subscriptions. Provides a robust foundation for multi-tenant operations.
+
+## Key Features
+
+### 🤖 **Intelligent Agent System**
+- **Custom Agent Creation**: Build specialized AI agents for specific tasks and workflows
+- **Multi-Model Support**: Integration with Anthropic Claude, OpenAI GPT, and other leading LLM providers
+- **Agent Templates**: Pre-configured agents for common use cases
+
+### 🔧 **Powerful Tool Ecosystem**
+- **Browser Automation**: Navigate websites, fill forms, extract data automatically
+- **File Management**: Create, edit, and organize documents and files
+- **Command Line Interface**: Execute system commands and scripts
+- **Web Search & Scraping**: Advanced research capabilities with real-time data access
+- **Data Processing**: Transform and analyze data from multiple sources
+
+### 🔗 **Extensible Integration Platform**
+- **MCP (Model Context Protocol)**: Connect external services and APIs seamlessly
+- **Data Providers**: Access LinkedIn, Twitter, Amazon, Yahoo Finance, and more
+- **Custom Integrations**: Build your own connectors and tools
+- **Workflow Automation**: Chain tasks and create complex automation pipelines
+
+### 🛡️ **Enterprise-Ready Security**
+- **Sandboxed Execution**: Each agent runs in isolated Docker containers
+- **Multi-Tenant Architecture**: Secure separation between users and organizations
+- **Authentication & Authorization**: Robust user management with Supabase Auth
+- **Audit Logging**: Complete activity tracking and monitoring
+
+### 📊 **Advanced Analytics & Monitoring**
+- **Real-time Dashboards**: Monitor agent performance and system health
+- **Usage Analytics**: Track costs, performance, and usage patterns
+- **Error Tracking**: Comprehensive error handling and debugging tools
+- **Performance Optimization**: Built-in cache optimization and performance monitoring
 
 ## Use Cases
 
@@ -88,9 +120,19 @@ Handles data persistence with authentication, user management, conversation hist
 
 12. **Scrape Forum Discussions** ([Watch](https://www.suna.so/share/7d7a5d93-a20d-48b0-82cc-e9a876e9fd04)) - _"I need to find the best beauty centers in Rome, but I want to find them by using open forums that speak about this topic. Go on Google, and scrape the forums by looking for beauty center discussions located in Rome. Then generate a list of 5 beauty centers with the best comments about them."_
 
-## Self-Hosting
+## Deployment Options
 
-Suna can be self-hosted on your own infrastructure using our comprehensive setup wizard. For a complete guide to self-hosting Suna, please refer to our [Self-Hosting Guide](./docs/SELF-HOSTING.md).
+### 🚀 Quick Deploy to Railway
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/OperaFlow)
+
+Deploy OperaFlow to Railway in minutes with automatic scaling, built-in Redis, and easy environment management.
+
+**→ [Railway Deployment Guide](./docs/RAILWAY_DEPLOYMENT.md)**
+
+### 🏠 Self-Hosting
+
+OperaFlow can be self-hosted on your own infrastructure using our comprehensive setup wizard. For a complete guide to self-hosting OperaFlow, please refer to our [Self-Hosting Guide](./docs/SELF-HOSTING.md).
 
 The setup process includes:
 
@@ -108,8 +150,8 @@ The setup process includes:
 1. **Clone the repository**:
 
 ```bash
-git clone https://github.com/kortix-ai/suna.git
-cd suna
+git clone https://github.com/caiorodrigo10/OperaFlow.git
+cd OperaFlow
 ```
 
 2. **Run the setup wizard**:
@@ -130,33 +172,56 @@ python start.py
 
 See the [Self-Hosting Guide](./docs/SELF-HOSTING.md) for detailed manual setup instructions.
 
-The wizard will guide you through all necessary steps to get your Suna instance up and running. For detailed instructions, troubleshooting tips, and advanced configuration options, see the [Self-Hosting Guide](./docs/SELF-HOSTING.md).
+The wizard will guide you through all necessary steps to get your OperaFlow instance up and running. For detailed instructions, troubleshooting tips, and advanced configuration options, see the [Self-Hosting Guide](./docs/SELF-HOSTING.md).
 
 ## Contributing
 
 We welcome contributions from the community! Please see our [Contributing Guide](./CONTRIBUTING.md) for more details.
 
+### Development Setup
+
+1. **Fork the repository**
+2. **Create a feature branch** (`git checkout -b feature/your-feature`)
+3. **Commit your changes** (`git commit -am 'feat: add some feature'`)
+4. **Push to the branch** (`git push origin feature/your-feature`)
+5. **Open a Pull Request**
+
+### Areas for Contribution
+
+- **New Agent Tools**: Develop new capabilities for agents
+- **MCP Integrations**: Create connectors for popular services
+- **UI/UX Improvements**: Enhance the user interface and experience
+- **Documentation**: Improve guides, tutorials, and API documentation
+- **Performance Optimization**: Optimize system performance and scalability
+- **Testing**: Add tests and improve test coverage
+
 ## Acknowledgements
 
-### Main Contributors
+### Core Technologies
 
-- [Adam Cohen Hillel](https://x.com/adamcohenhillel)
-- [Dat-lequoc](https://x.com/datlqqq)
-- [Marko Kraemer](https://twitter.com/markokraemer)
+- **[Supabase](https://supabase.com/)** - Database and authentication platform
+- **[FastAPI](https://fastapi.tiangolo.com/)** - Modern Python web framework
+- **[Next.js](https://nextjs.org/)** - React framework for production
+- **[Docker](https://docker.com/)** - Containerization and isolation
+- **[Playwright](https://playwright.dev/)** - Browser automation
+- **[Anthropic](https://anthropic.com/)** - Claude AI models
+- **[OpenAI](https://openai.com/)** - GPT models and API
+- **[Railway](https://railway.app/)** - Cloud deployment platform
 
-### Technologies
+### Inspiration
 
-- [Daytona](https://daytona.io/) - Secure agent execution environment
-- [Supabase](https://supabase.com/) - Database and authentication
-- [Playwright](https://playwright.dev/) - Browser automation
-- [OpenAI](https://openai.com/) - LLM provider
-- [Anthropic](https://www.anthropic.com/) - LLM provider
-- [Tavily](https://tavily.com/) - Search capabilities
-- [Firecrawl](https://firecrawl.dev/) - Web scraping capabilities
-- [QStash](https://upstash.com/qstash) - Background job processing and workflows
-- [RapidAPI](https://rapidapi.com/) - API services
-- [Smithery](https://smithery.ai/) - Custom agent development
+This project builds upon the excellent work of the open-source AI community and incorporates learnings from various AI agent frameworks and platforms.
 
 ## License
 
-Kortix Suna is licensed under the Apache License, Version 2.0. See [LICENSE](./LICENSE) for the full license text.
+OperaFlow is released under the [Apache 2.0 License](./LICENSE).
+
+---
+
+<div align="center">
+
+**[Website](https://operaflow.com)** • **[Documentation](./docs/)** • **[Railway Deployment](./docs/RAILWAY_DEPLOYMENT.md)** • **[Self-Hosting Guide](./docs/SELF-HOSTING.md)** • **[Contributing](./CONTRIBUTING.md)**
+
+Made with ❤️ by the OperaFlow community
+
+</div>

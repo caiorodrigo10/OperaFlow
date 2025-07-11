@@ -1,0 +1,112 @@
+# Multi-stage build for OperaFlow on Railway
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    build-essential \
+    pkg-config \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+RUN npm ci --only=production
+
+# Copy frontend source and build
+COPY frontend/ ./
+ENV NEXT_PUBLIC_VERCEL_ENV=production
+RUN npm run build
+
+# Backend stage with Python
+FROM ghcr.io/astral-sh/uv:python3.11-alpine AS backend-builder
+
+WORKDIR /app/backend
+
+# Install system dependencies
+RUN apk add --no-cache curl git build-base libffi-dev openssl-dev
+
+# Copy backend dependencies
+COPY backend/pyproject.toml backend/uv.lock ./
+ENV UV_LINK_MODE=copy
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --quiet
+
+# Copy backend source
+COPY backend/ ./
+
+# Final production stage
+FROM node:20-slim AS production
+
+WORKDIR /app
+
+# Install Python and system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    curl \
+    git \
+    build-essential \
+    libffi-dev \
+    libssl-dev \
+    pkg-config \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for Python package management
+RUN pip3 install uv
+
+# Copy built frontend
+COPY --from=frontend-builder /app/frontend/.next ./frontend/.next
+COPY --from=frontend-builder /app/frontend/public ./frontend/public
+COPY --from=frontend-builder /app/frontend/package*.json ./frontend/
+COPY --from=frontend-builder /app/frontend/node_modules ./frontend/node_modules
+
+# Copy backend with dependencies
+COPY --from=backend-builder /app/backend ./backend
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Start backend in background\n\
+cd /app/backend\n\
+uv run api.py &\n\
+BACKEND_PID=$!\n\
+\n\
+# Start frontend\n\
+cd /app/frontend\n\
+npm run start &\n\
+FRONTEND_PID=$!\n\
+\n\
+# Wait for both processes\n\
+wait $BACKEND_PID\n\
+wait $FRONTEND_PID\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Environment variables
+ENV NODE_ENV=production
+ENV PYTHONPATH=/app/backend
+ENV PYTHONUNBUFFERED=1
+
+# Expose ports
+EXPOSE 3000 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Start both services
+CMD ["/app/start.sh"] 
