@@ -3,14 +3,14 @@
 import { createQueryHook } from '@/hooks/use-query';
 import { checkApiHealth } from '@/lib/api';
 import { healthKeys } from '../files/keys';
+import { getCacheConfig } from '../cache-config';
 
 export const useApiHealth = createQueryHook(
   healthKeys.api(),
   checkApiHealth,
   {
-    staleTime: 30 * 1000,
+    ...getCacheConfig('health'),
     refetchInterval: 60 * 1000,
-    refetchOnWindowFocus: true,
     retry: 3,
   }
 ); 

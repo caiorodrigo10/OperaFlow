@@ -3,6 +3,7 @@
 import { createQueryHook } from '@/hooks/use-query';
 import { getThreads } from '@/lib/api';
 import { threadKeys } from './keys';
+import { getCacheConfig } from '../cache-config';
 
 export const useThreadsByProject = (projectId?: string) =>
   createQueryHook(
@@ -10,16 +11,12 @@ export const useThreadsByProject = (projectId?: string) =>
     () => projectId ? getThreads(projectId) : Promise.resolve([]),
     {
       enabled: !!projectId,
-      staleTime: 2 * 60 * 1000, 
-      refetchOnWindowFocus: false,
+      ...getCacheConfig('threads'),
     }
   )();
 
 export const useAllThreads = createQueryHook(
   threadKeys.all,
   () => getThreads(),
-  {
-    staleTime: 2 * 60 * 1000, 
-    refetchOnWindowFocus: false,
-  }
+  getCacheConfig('threads')
 ); 
