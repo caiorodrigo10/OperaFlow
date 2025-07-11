@@ -1,9 +1,9 @@
-# Optimized Railway Dockerfile for OperaFlow
+# Simplified Railway Dockerfile for OperaFlow
 FROM node:20-slim
 
 WORKDIR /app
 
-# Install system dependencies including nginx
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -12,14 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     build-essential \
-    libffi-dev \
-    libssl-dev \
-    pkg-config \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libjpeg-dev \
-    libgif-dev \
-    librsvg2-dev \
     supervisor \
     nginx \
     && rm -rf /var/lib/apt/lists/*
@@ -27,37 +19,50 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv for Python dependency management
 RUN pip3 install --break-system-packages uv
 
-# Setup backend first (faster builds on dependency changes)
+# Setup backend
 COPY backend/ ./backend/
 WORKDIR /app/backend
-
-# Install Python dependencies
 RUN uv sync --frozen
 
-# Setup frontend
+# Setup frontend - Copy everything first
 WORKDIR /app
-COPY frontend/package*.json ./frontend/
+COPY frontend/ ./frontend/
 WORKDIR /app/frontend
-RUN npm ci --only=production
 
-# Copy frontend source and build
-COPY frontend/ ./
+# Install dependencies
+RUN npm ci
+
+# Explicitly install sharp and postcss dependencies
+RUN npm install sharp @tailwindcss/postcss --save
+
+# Verify project structure and debug path resolution
+RUN echo "=== Verifying project structure ===" && \
+    pwd && \
+    ls -la && \
+    echo "=== TypeScript config ===" && \
+    cat tsconfig.json && \
+    echo "=== Next.js config ===" && \
+    cat next.config.ts && \
+    echo "=== Source structure ===" && \
+    find src -name "*.ts" -o -name "*.tsx" | head -20 && \
+    echo "=== Checking specific files ===" && \
+    ls -la src/lib/supabase/server.ts && \
+    ls -la src/lib/feature-flags.ts && \
+    ls -la src/lib/utils/get-agent-style.ts
+
+# Set environment variables for build
 ENV NODE_ENV=production
-ENV NEXT_PUBLIC_VERCEL_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_VERCEL_ENV=production
 
-# Set Railway-specific environment variables for build
-ENV NEXT_PUBLIC_BACKEND_URL=${RAILWAY_PUBLIC_DOMAIN:+https://$RAILWAY_PUBLIC_DOMAIN/api}
-ENV NEXT_PUBLIC_URL=${RAILWAY_PUBLIC_DOMAIN:+https://$RAILWAY_PUBLIC_DOMAIN}
-
-# Build frontend
-RUN npm run build
+# Try to build with verbose output
+RUN npm run build -- --debug
 
 # Copy nginx configuration
 WORKDIR /app
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Create optimized supervisor configuration with nginx
+# Create supervisor configuration
 RUN echo '[supervisord]\n\
 nodaemon=true\n\
 user=root\n\
@@ -103,10 +108,10 @@ ENV PYTHONPATH=/app/backend
 ENV PYTHONUNBUFFERED=1
 ENV PORT=${PORT:-8000}
 
-# Expose the main port (Railway will route to this)
+# Expose the main port
 EXPOSE ${PORT:-8000}
 
-# Improved health check targeting backend API through nginx
+# Health check
 HEALTHCHECK --interval=30s --timeout=15s --start-period=180s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/api/health || exit 1
 
