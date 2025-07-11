@@ -1,55 +1,77 @@
 'use client';
 
-import { useState, useEffect, useRef, Fragment, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import {
+  Download,
+  Upload,
+  FileText,
+  Image,
   File,
   Folder,
-  Upload,
-  Download,
-  ChevronRight,
+  ArrowLeft,
   Home,
-  ChevronLeft,
+  ChevronRight,
   Loader,
+  FileDown,
   AlertTriangle,
-  FileText,
-  ChevronDown,
-  Archive,
+  Search,
+  Eye,
+  EyeOff,
+  Filter,
+  Grid,
+  List,
+  RefreshCw,
+  Trash2,
+  Edit3,
+  Save,
+  X,
+  ExternalLink,
 } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  FileRenderer,
-} from '@/components/file-renderers';
-import {
-  listSandboxFiles,
-  type FileInfo,
-  Project,
-} from '@/lib/api';
-import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/AuthProvider';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
-import {
-  useDirectoryQuery,
-  useFileContentQuery,
-  FileCache
-} from '@/hooks/react-query/files';
+import { toast } from 'sonner';
+import { FileInfo, listSandboxFiles, Project } from '@/lib/api';
+import { useDirectoryQuery } from '@/hooks/react-query/files/use-file-queries';
+import { useUnifiedFileContent, useUnifiedFilePreloader } from '@/hooks/react-query/files/use-unified-file-cache';
+import { FileRenderer } from '@/components/file-renderers';
 import JSZip from 'jszip';
-import { normalizeFilenameToNFC } from '@/lib/utils/unicode';
+import { cn } from '@/lib/utils';
 
-// Define API_URL
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+// Legacy compatibility functions
+const legacyFileCache = {
+  isImageFile: (path: string): boolean => {
+    const ext = path.split('.').pop()?.toLowerCase() || '';
+    return ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext);
+  },
+  
+  isPdfFile: (path: string): boolean => {
+    return path.toLowerCase().endsWith('.pdf');
+  },
+  
+  getContentTypeFromPath: (path: string): 'text' | 'blob' | 'json' => {
+    if (!path) return 'text';
+    
+    const ext = path.toLowerCase().split('.').pop() || '';
+    
+    // Binary file extensions
+    if (/^(xlsx|xls|docx|doc|pptx|ppt|pdf|png|jpg|jpeg|gif|bmp|webp|svg|ico|zip|exe|dll|bin|dat|obj|o|so|dylib|mp3|mp4|avi|mov|wmv|flv|wav|ogg)$/.test(ext)) {
+      return 'blob';
+    }
+    
+    // JSON files
+    if (ext === 'json') return 'json';
+    
+    // Default to text
+    return 'text';
+  },
+};
 
 interface FileViewerModalProps {
   open: boolean;
@@ -68,29 +90,24 @@ export function FileViewerModal({
   project,
   filePathList,
 }: FileViewerModalProps) {
+  const { session } = useAuth();
+  const { preloadFiles } = useUnifiedFilePreloader();
+
   // Safely handle initialFilePath to ensure it's a string or null
   const safeInitialFilePath = typeof initialFilePath === 'string' ? initialFilePath : null;
 
-  // Auth for session token
-  const { session } = useAuth();
-
-  // File navigation state
+  // Navigation state
   const [currentPath, setCurrentPath] = useState('/workspace');
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [isFileListMode, setIsFileListMode] = useState(false);
+  const [currentFileIndex, setCurrentFileIndex] = useState<number>(-1);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [showHiddenFiles, setShowHiddenFiles] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Add navigation state for file list mode
-  const [currentFileIndex, setCurrentFileIndex] = useState<number>(-1);
-  const isFileListMode = Boolean(filePathList && filePathList.length > 0);
-
-  // Debug filePathList changes
-  useEffect(() => {
-    console.log('[FILE VIEWER DEBUG] filePathList changed:', {
-      filePathList,
-      length: filePathList?.length,
-      isFileListMode,
-      currentFileIndex
-    });
-  }, [filePathList, isFileListMode, currentFileIndex]);
+  const isFileListModeActive = Boolean(filePathList && filePathList.length > 0);
 
   // Use React Query for directory listing
   const {
@@ -106,29 +123,29 @@ export function FileViewerModal({
   // Add a navigation lock to prevent race conditions
   const currentNavigationRef = useRef<string | null>(null);
 
-  // File content state
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const [rawContent, setRawContent] = useState<string | Blob | null>(null);
-  const [textContentForRenderer, setTextContentForRenderer] = useState<
-    string | null
-  >(null);
+  // UI state
   const [blobUrlForRenderer, setBlobUrlForRenderer] = useState<string | null>(
     null,
   );
   const [contentError, setContentError] = useState<string | null>(null);
+  const [rawContent, setRawContent] = useState<string | Blob | null>(null);
+  const [textContentForRenderer, setTextContentForRenderer] = useState<
+    string | null
+  >(null);
 
-  // Use the React Query hook for the selected file instead of useCachedFile
+  // Use the new unified cache system for the selected file
   const {
     data: cachedFileContent,
+    blob: cachedFileBlob,
+    blobUrl: cachedFileBlobUrl,
     isLoading: isCachedFileLoading,
     error: cachedFileError,
-  } = useFileContentQuery(
+  } = useUnifiedFileContent(
     sandboxId,
     selectedFilePath || undefined,
     {
-      // Auto-detect content type consistently with other components
+      contentType: 'auto', // Auto-detect based on file extension
       enabled: !!selectedFilePath,
-      staleTime: 5 * 60 * 1000, // 5 minutes
     }
   );
 
@@ -240,7 +257,12 @@ export function FileViewerModal({
 
       console.log(`[DOWNLOAD ALL] Starting download of ${files.length} files`);
 
-      // Step 2: Create zip and load files
+      // Step 2: Preload all files using the unified cache system
+      setDownloadProgress({ current: 0, total: files.length, currentFile: 'Preloading files...' });
+      const filePaths = files.map(f => f.path);
+      await preloadFiles(sandboxId, filePaths);
+
+      // Step 3: Create zip and add files
       const zip = new JSZip();
       setDownloadProgress({ current: 0, total: files.length, currentFile: 'Creating archive...' });
 
@@ -255,157 +277,81 @@ export function FileViewerModal({
         });
 
         try {
-          // Determine content type for proper loading
-          const contentType = FileCache.getContentTypeFromPath(file.path);
-
-          // Check cache first
-          const cacheKey = `${sandboxId}:${file.path}:${contentType}`;
-          let content = FileCache.get(cacheKey);
-
-          if (!content) {
-            // Load from server if not cached
-            console.log(`[DOWNLOAD ALL] Loading file from server: ${file.path}`);
-            const response = await fetch(
-              `${process.env.NEXT_PUBLIC_BACKEND_URL}/sandboxes/${sandboxId}/files/content?path=${encodeURIComponent(file.path)}`,
-              {
-                headers: { 'Authorization': `Bearer ${session.access_token}` }
-              }
-            );
-
-            if (!response.ok) {
-              console.warn(`[DOWNLOAD ALL] Failed to load file: ${file.path} (${response.status})`);
-              continue; // Skip this file and continue with others
+          // Use unified cache system to get file content
+          console.log(`[DOWNLOAD ALL] Processing file: ${file.path}`);
+          
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/sandboxes/${sandboxId}/files/content?path=${encodeURIComponent(file.path)}`,
+            {
+              headers: { 'Authorization': `Bearer ${session.access_token}` }
             }
+          );
 
-            if (contentType === 'blob') {
-              content = await response.blob();
-            } else if (contentType === 'json') {
-              content = JSON.stringify(await response.json(), null, 2);
-            } else {
-              content = await response.text();
-            }
-
-            // Cache the content
-            FileCache.set(cacheKey, content);
+          if (!response.ok) {
+            console.warn(`[DOWNLOAD ALL] Failed to load file: ${file.path} (${response.status})`);
+            continue; // Skip this file and continue with others
           }
 
-          // Add to zip with proper structure
-          if (content instanceof Blob) {
-            zip.file(relativePath, content);
-          } else if (typeof content === 'string') {
-            // Handle blob URLs by fetching the actual content
-            if (content.startsWith('blob:')) {
-              try {
-                const blobResponse = await fetch(content);
-                const blobContent = await blobResponse.blob();
-                zip.file(relativePath, blobContent);
-              } catch (blobError) {
-                console.warn(`[DOWNLOAD ALL] Failed to fetch blob content for: ${file.path}`, blobError);
-                // Fallback: try to fetch from server directly
-                const fallbackResponse = await fetch(
-                  `${process.env.NEXT_PUBLIC_BACKEND_URL}/sandboxes/${sandboxId}/files/content?path=${encodeURIComponent(file.path)}`,
-                  { headers: { 'Authorization': `Bearer ${session.access_token}` } }
-                );
-                if (fallbackResponse.ok) {
-                  const fallbackBlob = await fallbackResponse.blob();
-                  zip.file(relativePath, fallbackBlob);
-                }
-              }
-            } else {
-              // Regular text content
-              zip.file(relativePath, content);
-            }
-          } else {
-            // Handle other content types (convert to JSON string)
-            zip.file(relativePath, JSON.stringify(content, null, 2));
-          }
-
-          console.log(`[DOWNLOAD ALL] Added to zip: ${relativePath} (${i + 1}/${files.length})`);
+          // Always get as blob for consistency
+          const blob = await response.blob();
+          zip.file(relativePath, blob);
 
         } catch (fileError) {
-          console.error(`[DOWNLOAD ALL] Error processing file ${file.path}:`, fileError);
+          console.warn(`[DOWNLOAD ALL] Error processing file ${file.path}:`, fileError);
           // Continue with other files
         }
       }
 
-      // Step 3: Generate and download the zip
-      setDownloadProgress({
-        current: files.length,
-        total: files.length,
-        currentFile: 'Generating zip file...'
-      });
-
-      console.log('[DOWNLOAD ALL] Generating zip file...');
-      const zipBlob = await zip.generateAsync({
+      // Step 4: Generate and download zip
+      setDownloadProgress({ current: files.length, total: files.length, currentFile: 'Generating archive...' });
+      
+      const zipBlob = await zip.generateAsync({ 
         type: 'blob',
         compression: 'DEFLATE',
         compressionOptions: { level: 6 }
       });
 
-      // Download the zip file
+      // Create download link
       const url = URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `workspace-${sandboxId}-${new Date().toISOString().slice(0, 10)}.zip`;
+      link.download = `workspace-${sandboxId}-${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      // Cleanup
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-      // Clean up
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-
-      toast.success(`Downloaded ${files.length} files as zip archive`);
-      console.log(`[DOWNLOAD ALL] Successfully created zip with ${files.length} files`);
+      toast.success(`Successfully downloaded ${files.length} files as ZIP`);
 
     } catch (error) {
-      console.error('[DOWNLOAD ALL] Error creating zip:', error);
-      toast.error(`Failed to create zip archive: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('[DOWNLOAD ALL] Error during download:', error);
+      toast.error('Failed to download files');
     } finally {
       setIsDownloadingAll(false);
       setDownloadProgress(null);
     }
-  }, [sandboxId, session?.access_token, isDownloadingAll, discoverAllFiles]);
+  }, [session?.access_token, isDownloadingAll, discoverAllFiles, preloadFiles, sandboxId]);
+
+  // Function to clear selected file state
+  const clearSelectedFile = useCallback(() => {
+    console.log(`[FILE VIEWER DEBUG] clearSelectedFile called, isFileListModeActive: ${isFileListModeActive}`);
+    setSelectedFilePath(null);
+    setBlobUrlForRenderer(null); // Clear derived blob URL
+    setContentError(null);
+    setRawContent(null);
+    setTextContentForRenderer(null);
+  }, [isFileListModeActive]);
 
   // Helper function to check if a value is a Blob (type-safe version of instanceof)
   const isBlob = (value: any): value is Blob => {
     return value instanceof Blob;
   };
 
-  // Helper function to clear the selected file
-  const clearSelectedFile = useCallback(() => {
-    console.log(`[FILE VIEWER DEBUG] clearSelectedFile called, isFileListMode: ${isFileListMode}`);
-    setSelectedFilePath(null);
-    setRawContent(null);
-    setTextContentForRenderer(null); // Clear derived text content
-    setBlobUrlForRenderer(null); // Clear derived blob URL
-    setContentError(null);
-    // Only reset file list mode index when not in file list mode
-    if (!isFileListMode) {
-      console.log(`[FILE VIEWER DEBUG] Resetting currentFileIndex in clearSelectedFile`);
-      setCurrentFileIndex(-1);
-    } else {
-      console.log(`[FILE VIEWER DEBUG] Keeping currentFileIndex in clearSelectedFile because in file list mode`);
-    }
-  }, [isFileListMode]);
-
-  // Core file opening function
+  // Function to open a file - Defined early so it can be used by other functions
   const openFile = useCallback(
-    async (file: FileInfo) => {
-      if (file.is_dir) {
-        // For directories, just navigate to that folder
-        const normalizedPath = normalizePath(file.path);
-        console.log(
-          `[FILE VIEWER] Navigating to folder: ${file.path} → ${normalizedPath}`,
-        );
-
-        // Clear selected file when navigating
-        clearSelectedFile();
-
-        // Update path state - must happen after clearing selection
-        setCurrentPath(normalizedPath);
-        return;
-      }
-
+    (file: FileInfo) => {
       // Skip if already selected
       if (selectedFilePath === file.path) {
         console.log(`[FILE VIEWER] File already selected: ${file.path}`);
@@ -415,8 +361,8 @@ export function FileViewerModal({
       console.log(`[FILE VIEWER] Opening file: ${file.path}`);
 
       // Check file types for logging
-      const isImageFile = FileCache.isImageFile(file.path);
-      const isPdfFile = FileCache.isPdfFile(file.path);
+      const isImageFile = legacyFileCache.isImageFile(file.path);
+      const isPdfFile = legacyFileCache.isPdfFile(file.path);
       const extension = file.path.split('.').pop()?.toLowerCase();
       const isOfficeFile = ['xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt'].includes(extension || '');
 
@@ -433,21 +379,21 @@ export function FileViewerModal({
       setSelectedFilePath(file.path);
 
       // Only reset file index if we're NOT in file list mode or the file is not in the list
-      if (!isFileListMode || !filePathList?.includes(file.path)) {
+      if (!isFileListModeActive || !filePathList?.includes(file.path)) {
         console.log(`[FILE VIEWER DEBUG] Resetting currentFileIndex because not in file list mode or file not in list`);
         setCurrentFileIndex(-1);
       } else {
         console.log(`[FILE VIEWER DEBUG] Keeping currentFileIndex because file is in file list mode`);
       }
 
-      // The useFileContentQuery hook will automatically handle loading the content
+      // The useUnifiedFileContent hook will automatically handle loading the content
       // No need to manually fetch here - React Query will handle it
     },
     [
       selectedFilePath,
       clearSelectedFile,
       normalizePath,
-      isFileListMode,
+      isFileListModeActive,
       filePathList,
     ],
   );
@@ -559,7 +505,7 @@ export function FileViewerModal({
     [normalizePath],
   );
 
-  // Add a helper to directly interact with the raw cache
+  // Add a helper to directly interact with the raw cache (legacy compatibility)
   const _directlyAccessCache = useCallback(
     (filePath: string): {
       found: boolean;
@@ -573,19 +519,9 @@ export function FileViewerModal({
       }
 
       // Detect the appropriate content type based on file extension
-      const detectedContentType = FileCache.getContentTypeFromPath(filePath);
+      const detectedContentType = legacyFileCache.getContentTypeFromPath(filePath);
 
-      // Create cache key with detected content type
-      const cacheKey = `${sandboxId}:${normalizedPath}:${detectedContentType}`;
-      console.log(`[FILE VIEWER] Checking cache for key: ${cacheKey}`);
-
-      if (FileCache.has(cacheKey)) {
-        const cachedContent = FileCache.get(cacheKey);
-        console.log(`[FILE VIEWER] Direct cache hit for ${normalizedPath} (${detectedContentType})`);
-        return { found: true, content: cachedContent, contentType: detectedContentType };
-      }
-
-      console.log(`[FILE VIEWER] Cache miss for key: ${cacheKey}`);
+      console.log(`[FILE VIEWER] Legacy cache check for ${normalizedPath} (${detectedContentType})`);
       return { found: false, content: null, contentType: detectedContentType };
     },
     [sandboxId],
@@ -737,8 +673,8 @@ export function FileViewerModal({
       console.log(`[FILE VIEWER] Received cached content for: ${selectedFilePath}`);
 
       // Check file type to determine proper handling
-      const isImageFile = FileCache.isImageFile(selectedFilePath);
-      const isPdfFile = FileCache.isPdfFile(selectedFilePath);
+      const isImageFile = legacyFileCache.isImageFile(selectedFilePath);
+      const isPdfFile = legacyFileCache.isPdfFile(selectedFilePath);
       const extension = selectedFilePath.split('.').pop()?.toLowerCase();
       const isOfficeFile = ['xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt'].includes(extension || '');
       const isBinaryFile = isImageFile || isPdfFile || isOfficeFile;
@@ -1033,7 +969,7 @@ export function FileViewerModal({
 
       // Get file metadata
       const fileName = selectedFilePath.split('/').pop() || 'file';
-      const mimeType = FileCache.getMimeTypeFromPath?.(selectedFilePath) || 'application/octet-stream';
+      const mimeType = legacyFileCache.getMimeTypeFromPath?.(selectedFilePath) || 'application/octet-stream';
 
       // Use rawContent if available
       if (rawContent) {
@@ -1439,10 +1375,10 @@ export function FileViewerModal({
                       }
 
                       // Detect the appropriate content type based on file extension
-                      const detectedContentType = FileCache.getContentTypeFromPath(normalizedPath);
+                      const detectedContentType = legacyFileCache.getContentTypeFromPath(normalizedPath);
 
                       // Check for cache with the correct content type
-                      const isCached = FileCache.has(`${sandboxId}:${normalizedPath}:${detectedContentType}`);
+                      const isCached = legacyFileCache.has(`${sandboxId}:${normalizedPath}:${detectedContentType}`);
 
                       return isCached
                         ? "Using cached version"
@@ -1490,8 +1426,8 @@ export function FileViewerModal({
                 <div className="h-full w-full relative">
                   {(() => {
                     // Safety check: don't render text content for binary files
-                    const isImageFile = FileCache.isImageFile(selectedFilePath);
-                    const isPdfFile = FileCache.isPdfFile(selectedFilePath);
+                    const isImageFile = legacyFileCache.isImageFile(selectedFilePath);
+                    const isPdfFile = legacyFileCache.isPdfFile(selectedFilePath);
                     const extension = selectedFilePath?.split('.').pop()?.toLowerCase();
                     const isOfficeFile = ['xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt'].includes(extension || '');
                     const isBinaryFile = isImageFile || isPdfFile || isOfficeFile;
