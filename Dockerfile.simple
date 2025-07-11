@@ -1,0 +1,26 @@
+# Simple test Dockerfile for Railway
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Copy frontend
+COPY frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm ci
+
+COPY frontend/ ./
+ENV NODE_ENV=production
+RUN npm run build
+
+# Expose port
+EXPOSE 3000
+
+# Simple health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
+
+# Start frontend only for testing
+CMD ["npm", "run", "start"] 

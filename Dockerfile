@@ -26,15 +26,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv using the recommended method with --break-system-packages
 RUN pip3 install --break-system-packages uv
 
-# Copy and install frontend dependencies
+# Copy and install frontend dependencies first
 COPY frontend/package*.json ./frontend/
 WORKDIR /app/frontend
 RUN npm ci
 
-# Copy frontend source and build
+# Copy ALL frontend source files before building
 COPY frontend/ ./
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_VERCEL_ENV=production
+
+# Build the frontend
 RUN npm run build
 
 # Setup backend

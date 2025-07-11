@@ -14,7 +14,7 @@ import { AgentMCPConfiguration } from '../../../../../components/agents/agent-mc
 import { toast } from 'sonner';
 import { AgentToolsConfiguration } from '../../../../../components/agents/agent-tools-configuration';
 import { AgentPreview } from '../../../../../components/agents/agent-preview';
-import { getAgentAvatar } from '../../../../../lib/utils/get-agent-style';
+import { getAgentAvatar } from '@/lib/utils/get-agent-style';
 import { EditableText } from '@/components/ui/editable';
 import { StylePicker } from '../../../../../components/agents/style-picker';
 import { useSidebar } from '@/components/ui/sidebar';
