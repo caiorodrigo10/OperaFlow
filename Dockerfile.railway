@@ -63,6 +63,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     libgif-dev \
     librsvg2-dev \
+    supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for Python package management
@@ -77,36 +78,57 @@ COPY --from=frontend-builder /app/frontend/node_modules ./frontend/node_modules
 # Copy backend with dependencies
 COPY --from=backend-builder /app/backend ./backend
 
-# Create startup script
-RUN echo '#!/bin/bash\n\
-set -e\n\
+# Create supervisor configuration
+RUN echo '[supervisord]\n\
+nodaemon=true\n\
+user=root\n\
+logfile=/var/log/supervisor/supervisord.log\n\
+pidfile=/var/run/supervisord.pid\n\
 \n\
-# Start backend in background\n\
-cd /app/backend\n\
-uv run api.py &\n\
-BACKEND_PID=$!\n\
+[program:backend]\n\
+command=uv run api.py\n\
+directory=/app/backend\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/var/log/supervisor/backend.err.log\n\
+stdout_logfile=/var/log/supervisor/backend.out.log\n\
+environment=PYTHONPATH="/app/backend",PYTHONUNBUFFERED="1"\n\
 \n\
-# Start frontend\n\
-cd /app/frontend\n\
-npm run start &\n\
-FRONTEND_PID=$!\n\
-\n\
-# Wait for both processes\n\
-wait $BACKEND_PID\n\
-wait $FRONTEND_PID\n\
-' > /app/start.sh && chmod +x /app/start.sh
+[program:frontend]\n\
+command=npm run start\n\
+directory=/app/frontend\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/var/log/supervisor/frontend.err.log\n\
+stdout_logfile=/var/log/supervisor/frontend.out.log\n\
+environment=NODE_ENV="production",PORT="3000"\n\
+' > /etc/supervisor/conf.d/supervisord.conf
+
+# Create log directories
+RUN mkdir -p /var/log/supervisor
 
 # Environment variables
 ENV NODE_ENV=production
 ENV PYTHONPATH=/app/backend
 ENV PYTHONUNBUFFERED=1
+ENV PORT=3000
 
 # Expose ports
 EXPOSE 3000 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
+# Health check script
+RUN echo '#!/bin/bash\n\
+# Check if both services are running\n\
+if curl -f http://localhost:8000/api/health >/dev/null 2>&1 && curl -f http://localhost:3000 >/dev/null 2>&1; then\n\
+    exit 0\n\
+else\n\
+    exit 1\n\
+fi\n\
+' > /app/healthcheck.sh && chmod +x /app/healthcheck.sh
 
-# Start both services
-CMD ["/app/start.sh"] 
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD /app/healthcheck.sh
+
+# Start supervisor to manage both services
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 

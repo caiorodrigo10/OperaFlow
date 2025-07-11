@@ -136,18 +136,24 @@ async def log_requests_middleware(request: Request, call_next):
         raise
 
 # Define allowed origins based on environment
-allowed_origins = ["https://www.suna.so", "https://suna.so"]
+allowed_origins = ["https://www.operaflow.com", "https://operaflow.com"]
 allow_origin_regex = None
 
-# Add staging-specific origins
+# Add Railway and development origins
 if config.ENV_MODE == EnvMode.LOCAL:
     allowed_origins.append("http://localhost:3000")
+    allowed_origins.append("http://localhost:3001")
 
-# Add staging-specific origins
+# Add staging and Railway-specific origins
 if config.ENV_MODE == EnvMode.STAGING:
-    allowed_origins.append("https://staging.suna.so")
+    allowed_origins.append("https://staging.operaflow.com")
     allowed_origins.append("http://localhost:3000")
-    allow_origin_regex = r"https://suna-.*-prjcts\.vercel\.app"
+    allowed_origins.append("http://localhost:3001")
+    allow_origin_regex = r"https://.*\.railway\.app"
+
+# Add Railway production origins
+if config.ENV_MODE == EnvMode.PRODUCTION:
+    allow_origin_regex = r"https://.*\.railway\.app"
 
 app.add_middleware(
     CORSMiddleware,
